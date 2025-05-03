@@ -220,7 +220,31 @@
             <button class="setup-button" id="saveSetupButton">Save Settings</button>
         </div>
         <p class="setup-status" id="setupStatus"></p>
-        <p>These settings will be saved on this device. <a href="https://www.emailjs.com/docs/introduction/how-does-emailjs-work/" target="_blank">Learn how to set up EmailJS</a> (free for up to 200 emails/month).</p>
+        <div class="emailjs-setup-guide">
+            <h4>How to Set Up EmailJS for This App:</h4>
+            <ol>
+                <li>Go to <a href="https://www.emailjs.com/" target="_blank">EmailJS.com</a> and create a free account</li>
+                <li>Add a new email service (like Gmail, Outlook, etc.)</li>
+                <li>Create a new template with these parameters:
+                    <ul>
+                        <li>{{to_email}} - For recipient address</li>
+                        <li>{{subject}} - For email subject</li>
+                        <li>{{message}} - For message text</li>
+                        <li>{{category}} - For question category</li>
+                        <li>{{question}} - For the question text</li>
+                        <li>{{date}} - For recording date</li>
+                        <li>{{audio_data}} - For the audio attachment</li>
+                    </ul>
+                </li>
+                <li>For the audio attachment, add this to your template body:</li>
+                <code style="display: block; padding: 8px; background: #f6f6f6; margin: 8px 0; font-family: monospace; white-space: pre-wrap;">
+&lt;!-- Audio attachment --&gt;
+&lt;a href="{{audio_data}}" download="family_memoir_recording.wav"&gt;Download Audio Recording&lt;/a&gt;
+                </code>
+                <li>Copy your Service ID, Template ID, and Public Key from the EmailJS dashboard</li>
+            </ol>
+            <p>These settings will be saved on this device. <a href="https://www.emailjs.com/docs/introduction/how-does-emailjs-work/" target="_blank">Learn more about EmailJS</a> (free for up to 200 emails/month).</p>
+        </div>
     </div>
     
     <div class="recipient-email">
@@ -544,6 +568,12 @@
                 return;
             }
             
+            console.log("Saving EmailJS settings with IDs:", {
+                serviceId: serviceId,
+                templateId: templateId,
+                publicKeyFirstChars: publicKey.substring(0, 4) + "..."
+            });
+            
             // Save settings to localStorage
             const settings = {
                 serviceId: serviceId,
@@ -556,16 +586,32 @@
             // Initialize EmailJS
             try {
                 emailjs.init(publicKey);
-                setupStatus.textContent = "Settings saved successfully!";
-                setupStatus.style.color = "green";
                 
-                // Hide setup container after a delay
-                setTimeout(() => {
-                    setupContainer.classList.add('hidden');
-                }, 2000);
+                // Test EmailJS configuration
+                setupStatus.textContent = "Testing EmailJS connection...";
+                setupStatus.style.color = "blue";
+                
+                // Create a simple test object just to verify the connection
+                // This doesn't actually send an email
+                emailjs.send(serviceId, templateId, {test: 'test'}, publicKey)
+                    .then(function() {
+                        console.log("EmailJS connection test successful");
+                        setupStatus.textContent = "Settings saved and verified successfully!";
+                        setupStatus.style.color = "green";
+                        
+                        // Hide setup container after a delay
+                        setTimeout(() => {
+                            setupContainer.classList.add('hidden');
+                        }, 2000);
+                    })
+                    .catch(function(error) {
+                        console.error("EmailJS test error:", error);
+                        setupStatus.innerHTML = `Error: ${error.text || "Unknown error"}.<br>Check your credentials and template setup.`;
+                        setupStatus.style.color = "red";
+                    });
             } catch (e) {
                 console.error("Error initializing EmailJS:", e);
-                setupStatus.textContent = "Error initializing EmailJS. Check your credentials.";
+                setupStatus.textContent = "Error initializing EmailJS: " + (e.message || "Check your credentials");
                 setupStatus.style.color = "red";
             }
         }
@@ -594,6 +640,20 @@
                 return;
             }
             
+            // Display full debug info for troubleshooting
+            console.log("EmailJS settings:", {
+                serviceId: emailjsSettings.serviceId,
+                templateId: emailjsSettings.templateId,
+                publicKeyFirstChars: emailjsSettings.publicKey ? emailjsSettings.publicKey.substring(0, 4) + "..." : "none"
+            });
+            
+            // Re-initialize EmailJS just to be safe
+            try {
+                emailjs.init(emailjsSettings.publicKey);
+            } catch (e) {
+                console.error("Error re-initializing EmailJS:", e);
+            }
+            
             // Get the recording data
             const question = questions[currentCategory][currentQuestionIndex];
             const recording = recordings[key];
@@ -604,8 +664,10 @@
             
             // Use the blob directly if available, otherwise fetch from URL
             if (recording.blob) {
+                console.log("Using existing blob for email");
                 processAudioBlob(recording.blob);
             } else if (recording.url) {
+                console.log("Fetching blob from URL for email");
                 fetch(recording.url)
                     .then(res => res.blob())
                     .then(blob => {
@@ -624,10 +686,26 @@
             }
             
             function processAudioBlob(blob) {
+                // Debug blob info
+                console.log("Processing audio blob:", {
+                    type: blob.type,
+                    size: blob.size + " bytes",
+                    sizeInMB: (blob.size / (1024 * 1024)).toFixed(2) + " MB"
+                });
+                
+                // Check if blob might be too large
+                if (blob.size > 5 * 1024 * 1024) {  // 5MB limit
+                    console.warn("Audio file might be too large for email attachment");
+                    sendingStatus.textContent = "Audio file may be too large. Try a shorter recording.";
+                    sendingStatus.style.color = "orange";
+                    // Continue anyway, but warn the user
+                }
+                
                 const reader = new FileReader();
                 reader.readAsDataURL(blob);
                 reader.onloadend = function() {
                     const base64data = reader.result;
+                    console.log("Base64 data length:", base64data.length + " characters");
                     
                     // Format date
                     const date = new Date(recording.date).toLocaleDateString();
@@ -638,10 +716,23 @@
                         word.charAt(0).toUpperCase() + word.slice(1)
                     ).join(' ');
                     
-                    // Create template parameters
+                    // Create trimmed down template parameters for debugging output
+                    const debugTemplateParams = {
+                        to_email: recipientEmail,
+                        subject: `Family Memoir: ${question}`,
+                        question: question,
+                        category: categoryName,
+                        date: date,
+                        audio_data_length: base64data.length + " characters"
+                    };
+                    
+                    console.log("Email template parameters:", debugTemplateParams);
+                    
+                    // Actual template parameters
                     const templateParams = {
                         to_email: recipientEmail,
                         subject: `Family Memoir: ${question}`,
+                        message: `Recording for question: "${question}" (Category: ${categoryName}, Date: ${date})`,
                         question: question,
                         category: categoryName,
                         date: date,
@@ -650,27 +741,43 @@
                     
                     sendingStatus.textContent = "Sending email...";
                     
-                    // Send email with attachment
-                    emailjs.send(
-                        emailjsSettings.serviceId,
-                        emailjsSettings.templateId,
-                        templateParams
-                    ).then(function(response) {
-                        console.log("Email sent:", response);
-                        sendingStatus.textContent = "Email sent successfully!";
-                        sendingStatus.style.color = "green";
-                        emailButton.disabled = false;
-                        
-                        setTimeout(() => {
-                            sendingStatus.textContent = "";
-                        }, 3000);
-                        
-                    }, function(error) {
-                        console.error("EmailJS Error:", error);
-                        sendingStatus.textContent = "Failed to send email. Check console for details.";
+                    // Send email with attachment - wrapped in try/catch
+                    try {
+                        emailjs.send(
+                            emailjsSettings.serviceId,
+                            emailjsSettings.templateId,
+                            templateParams,
+                            emailjsSettings.publicKey  // Adding public key here explicitly
+                        ).then(function(response) {
+                            console.log("Email sent successfully:", response);
+                            sendingStatus.textContent = "Email sent successfully!";
+                            sendingStatus.style.color = "green";
+                            emailButton.disabled = false;
+                            
+                            setTimeout(() => {
+                                sendingStatus.textContent = "";
+                            }, 3000);
+                            
+                        }, function(error) {
+                            console.error("EmailJS Error:", error);
+                            // More detailed error message
+                            sendingStatus.innerHTML = `Failed to send email: ${error.text || 'Unknown error'}.<br>Check your EmailJS settings and template.`;
+                            sendingStatus.style.color = "red";
+                            emailButton.disabled = false;
+                        });
+                    } catch (e) {
+                        console.error("Exception when calling emailjs.send:", e);
+                        sendingStatus.textContent = "Error: " + (e.message || "Unknown error calling EmailJS");
                         sendingStatus.style.color = "red";
                         emailButton.disabled = false;
-                    });
+                    }
+                };
+                
+                reader.onerror = function(error) {
+                    console.error("Error reading file:", error);
+                    sendingStatus.textContent = "Error reading audio file";
+                    sendingStatus.style.color = "red";
+                    emailButton.disabled = false;
                 };
             }
         }
