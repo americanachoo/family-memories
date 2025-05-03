@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Memoir Voice Recorder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #4a4a4a;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .question-card {
+            background-color: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .question {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        
+        .record-btn {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .stop-btn {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .play-btn {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        
+        .nav-btn {
+            background-color: #7f8c8d;
+            color: white;
+            width: 45%;
+        }
+        
+        .timer {
+            text-align: center;
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        
+        .recordings-list {
+            margin-top: 30px;
+        }
+        
+        .recording-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .instructions {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        
+        .menu {
+            margin-bottom: 20px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Family Memoir Voice Recorder</h1>
+    
+    <div class="instructions">
+        <p>Welcome to your family memoir project! This tool helps you record your life memories by answering simple questions. You can:</p>
+        <ul>
+            <li>Select a question category from the menu</li>
+            <li>Press "Record" and share your memories</li>
+            <li>Listen to your recordings</li>
+            <li>Return anytime to add more memories</li>
+        </ul>
+        <p>Your recordings are saved on your device.</p>
+    </div>
+    
+    <div class="menu">
+        <select id="category-select">
+            <option value="childhood">Childhood Memories</option>
+            <option value="family">Family History</option>
+            <option value="career">Career & Work Life</option>
+            <option value="life-lessons">Life Lessons & Wisdom</option>
+            <option value="historical">Historical Events</option>
+        </select>
+    </div>
+    
+    <div class="question-card">
+        <div class="question" id="current-question">What is your earliest childhood memory?</div>
+        
+        <div class="timer" id="timer">00:00</div>
+        
+        <div class="controls">
+            <button class="record-btn" id="recordButton">Start Recording</button>
+            <button class="stop-btn" id="stopButton" disabled>Stop Recording</button>
+            <button class="play-btn" id="playButton" disabled>Play Recording</button>
+        </div>
+        
+        <div class="nav-buttons">
+            <button class="nav-btn" id="prevButton">Previous Question</button>
+            <button class="nav-btn" id="nextButton">Next Question</button>
+        </div>
+    </div>
+    
+    <script>
+        // Questions by category
+        const questions = {
+            childhood: [
+                "What is your earliest childhood memory?",
+                "What was your childhood home like?",
+                "Who were your childhood friends and what games did you play?",
+                "What was school like when you were growing up?",
+                "What holiday traditions did your family have?",
+                "What was your favorite toy or possession as a child?"
+            ],
+            family: [
+                "How did your parents (or grandparents) meet?",
+                "What do you know about your family name and its history?",
+                "What family members influenced you the most and how?",
+                "What were your parents or guardians like?",
+                "What family stories or legends were passed down to you?"
+            ],
+            career: [
+                "What was your first job?",
+                "What career path did you follow and why?",
+                "What was your most challenging work experience?",
+                "What work achievement are you most proud of?",
+                "How did your work life change over the decades?"
+            ],
+            "life-lessons": [
+                "What's the most important life lesson you've learned?",
+                "What advice would you give to younger generations?",
+                "What do you wish you had known when you were younger?",
+                "What values have guided your life decisions?",
+                "What are you most grateful for in life?"
+            ],
+            historical: [
+                "What major historical events have you lived through?",
+                "How did technology change throughout your life?",
+                "What social changes have you witnessed in your lifetime?",
+                "What was different about everyday life when you were young?",
+                "How did major world events affect your personal life?"
+            ]
+        };
+        
+        // Current state
+        let currentCategory = "childhood";
+        let currentQuestionIndex = 0;
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob;
+        let audioUrl;
+        let timer;
+        let seconds = 0;
+        let recordings = JSON.parse(localStorage.getItem('memoirRecordings')) || {};
+        
+        // DOM elements
+        const questionElement = document.getElementById('current-question');
+        const recordButton = document.getElementById('recordButton');
+        const stopButton = document.getElementById('stopButton');
+        const playButton = document.getElementById('playButton');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+        const timerElement = document.getElementById('timer');
+        const categorySelect = document.getElementById('category-select');
+        
+        // Initialize
+        function init() {
+            updateQuestion();
+            
+            categorySelect.addEventListener('change', function() {
+                currentCategory = this.value;
+                currentQuestionIndex = 0;
+                updateQuestion();
+            });
+            
+            recordButton.addEventListener('click', startRecording);
+            stopButton.addEventListener('click', stopRecording);
+            playButton.addEventListener('click', playRecording);
+            prevButton.addEventListener('click', previousQuestion);
+            nextButton.addEventListener('click', nextQuestion);
+            
+            // Check if recording was previously saved for current question
+            checkForSavedRecording();
+        }
+        
+        function updateQuestion() {
+            questionElement.textContent = questions[currentCategory][currentQuestionIndex];
+            playButton.disabled = true;
+            checkForSavedRecording();
+        }
+        
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                    });
+                    
+                    mediaRecorder.addEventListener("stop", () => {
+                        audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        audioUrl = URL.createObjectURL(audioBlob);
+                        
+                        playButton.disabled = false;
+                        
+                        // Save recording
+                        saveRecording(audioBlob);
+                    });
+                    
+                    mediaRecorder.start();
+                    startTimer();
+                    
+                    recordButton.disabled = true;
+                    stopButton.disabled = false;
+                })
+                .catch(error => {
+                    console.error("Error accessing microphone:", error);
+                    alert("Please allow microphone access to record your memories.");
+                });
+        }
+        
+        function stopRecording() {
+            mediaRecorder.stop();
+            stopTimer();
+            recordButton.disabled = false;
+            stopButton.disabled = true;
+        }
+        
+        function playRecording() {
+            const currentKey = `${currentCategory}-${currentQuestionIndex}`;
+            
+            // If there's a saved recording, use that
+            if (recordings[currentKey]) {
+                const audio = new Audio(recordings[currentKey].url);
+                audio.play();
+            } else if (audioUrl) {
+                const audio = new Audio(audioUrl);
+                audio.play();
+            }
+        }
+        
+        function previousQuestion() {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                updateQuestion();
+            }
+        }
+        
+        function nextQuestion() {
+            if (currentQuestionIndex < questions[currentCategory].length - 1) {
+                currentQuestionIndex++;
+                updateQuestion();
+            }
+        }
+        
+        function startTimer() {
+            seconds = 0;
+            updateTimerDisplay();
+            timer = setInterval(() => {
+                seconds++;
+                updateTimerDisplay();
+            }, 1000);
+        }
+        
+        function stopTimer() {
+            clearInterval(timer);
+        }
+        
+        function updateTimerDisplay() {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+        
+        function saveRecording(blob) {
+            const url = URL.createObjectURL(blob);
+            const key = `${currentCategory}-${currentQuestionIndex}`;
+            const question = questions[currentCategory][currentQuestionIndex];
+            
+            recordings[key] = {
+                url: url,
+                question: question,
+                date: new Date().toISOString(),
+                category: currentCategory
+            };
+            
+            localStorage.setItem('memoirRecordings', JSON.stringify(recordings));
+        }
+        
+        function checkForSavedRecording() {
+            const key = `${currentCategory}-${currentQuestionIndex}`;
+            
+            if (recordings[key]) {
+                playButton.disabled = false;
+            } else {
+                playButton.disabled = true;
+            }
+        }
+        
+        // Initialize the app
+        init();
+    </script>
+</body>
+</html>
