@@ -111,6 +111,14 @@
             font-size: 16px;
         }
     </style>
+<head>
+    ...
+    <script type="text/javascript" src="https://cdn.emailjs.com/dist/email.min.js"></script>
+    <script>
+        emailjs.init("service_ghtj3ys"); // Replace with your actual EmailJS user ID
+    </script>
+</head>
+
 </head>
 <body>
     <h1>Family Memoir Voice Recorder</h1>
@@ -326,20 +334,23 @@
             timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
         }
         
-        function saveRecording(blob) {
-            const url = URL.createObjectURL(blob);
-            const key = `${currentCategory}-${currentQuestionIndex}`;
-            const question = questions[currentCategory][currentQuestionIndex];
-            
-            recordings[key] = {
-                url: url,
-                question: question,
-                date: new Date().toISOString(),
-                category: currentCategory
-            };
-            
-            localStorage.setItem('memoirRecordings', JSON.stringify(recordings));
-        }
+   function saveRecording(blob) {
+    const url = URL.createObjectURL(blob);
+    const key = `${currentCategory}-${currentQuestionIndex}`;
+    const question = questions[currentCategory][currentQuestionIndex];
+    
+    recordings[key] = {
+        url: url,
+        question: question,
+        date: new Date().toISOString(),
+        category: currentCategory
+    };
+    
+    localStorage.setItem('memoirRecordings', JSON.stringify(recordings));
+
+    // 📧 Send the email
+    sendEmailWithRecording(blob);
+}
         
         function checkForSavedRecording() {
             const key = `${currentCategory}-${currentQuestionIndex}`;
@@ -350,6 +361,27 @@
                 playButton.disabled = true;
             }
         }
+        function sendEmailWithRecording(blob) {
+    const reader = new FileReader();
+
+    reader.onload = function () {
+        const base64Audio = reader.result.split(',')[1]; // remove the data URL prefix
+
+        emailjs.send("service_ghtj3ys", "template_f8uo4dw", {
+            to_email: "khauryski@gmail.com",
+            message: `New recording submitted for question: "${questions[currentCategory][currentQuestionIndex]}"`,
+            attachment: base64Audio
+
+        .then(function(response) {
+            alert("Recording emailed successfully!");
+        }, function(error) {
+            alert("Email failed: " + error.text);
+        });
+    };
+
+    reader.readAsDataURL(blob);
+}
+
         
         // Initialize the app
         init();
