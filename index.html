@@ -1,9 +1,37 @@
-<!DOCTYPE html>
+// Additional DOM elements
+        const setupContainer = document.getElementById('setupContainer');
+        const setupStatus = document.getElementById('setupStatus');
+        const saveSetupButton = document.getElementById('saveSetupButton');
+        const sendingStatus = document.getElementById('sendingStatus');
+        const emailjsServiceId = document.getElementById('emailjsServiceId');
+        const emailjsTemplateId = document.getElementById('emailjsTemplateId');
+        const emailjsPublicKey = document.getElementById('emailjsPublicKey');    <div class="setup-container" id="setupContainer">
+        <h3>One-Time Setup (For You, Not Your Grandparents)</h3>
+        <p>To enable easy email sending, please enter your EmailJS credentials:</p>
+        <div class="setup-form">
+            <label>
+                EmailJS Service ID:
+                <input type="text" id="emailjsServiceId" placeholder="service_xxxxxxx">
+            </label>
+            <label>
+                EmailJS Template ID:
+                <input type="text" id="emailjsTemplateId" placeholder="template_xxxxxxx">
+            </label>
+            <label>
+                EmailJS Public Key:
+                <input type="text" id="emailjsPublicKey" placeholder="xxxxxxxxxxxxxxxx">
+            </label>
+            <button class="setup-button" id="saveSetupButton">Save Settings</button>
+        </div>
+        <p class="setup-status" id="setupStatus"></p>
+        <p>These settings will be saved on this device. <a href="https://www.emailjs.com/docs/introduction/how-does-emailjs-work/" target="_blank">Learn how to set up EmailJS</a> (free for up to 200 emails/month).</p>
+    </div><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family Memoir Voice Recorder</title>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -62,6 +90,11 @@
             color: white;
         }
         
+        .email-btn {
+            background-color: #9b59b6;
+            color: white;
+        }
+        
         .nav-buttons {
             display: flex;
             justify-content: space-between;
@@ -103,22 +136,82 @@
             margin-bottom: 20px;
         }
         
-        select {
+        select, input[type="email"] {
             width: 100%;
             padding: 10px;
             border-radius: 5px;
             border: 1px solid #ddd;
             font-size: 16px;
         }
+        
+        .recipient-email {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        
+        .recipient-email label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .email-note {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .setup-container {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border: 1px solid #bbdefb;
+        }
+        
+        .setup-container h3 {
+            margin-top: 0;
+            color: #1565c0;
+        }
+        
+        .setup-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .setup-container input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .setup-button {
+            background-color: #1565c0;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .setup-status {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .sending-status {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+        }
     </style>
-<head>
-    ...
-    <script type="text/javascript" src="https://cdn.emailjs.com/dist/email.min.js"></script>
-    <script>
-        emailjs.init("service_ghtj3ys"); // Replace with your actual EmailJS user ID
-    </script>
-</head>
-
 </head>
 <body>
     <h1>Family Memoir Voice Recorder</h1>
@@ -129,9 +222,16 @@
             <li>Select a question category from the menu</li>
             <li>Press "Record" and share your memories</li>
             <li>Listen to your recordings</li>
+            <li>Email your recordings to save and share them</li>
             <li>Return anytime to add more memories</li>
         </ul>
         <p>Your recordings are saved on your device.</p>
+    </div>
+    
+    <div class="recipient-email">
+        <label for="email">Send recordings to (enter email address):</label>
+        <input type="email" id="recipientEmail" placeholder="family@example.com" value="">
+        <p class="email-note">Emails will be sent using EmailJS service</p>
     </div>
     
     <div class="menu">
@@ -153,6 +253,8 @@
             <button class="record-btn" id="recordButton">Start Recording</button>
             <button class="stop-btn" id="stopButton" disabled>Stop Recording</button>
             <button class="play-btn" id="playButton" disabled>Play Recording</button>
+            <button class="email-btn" id="emailButton" disabled>Send Recording by Email</button>
+            <div class="sending-status" id="sendingStatus"></div>
         </div>
         
         <div class="nav-buttons">
@@ -162,6 +264,21 @@
     </div>
     
     <script>
+        // Initialize EmailJS
+        (function() {
+            // Check if EmailJS settings are saved
+            const emailjsSettings = JSON.parse(localStorage.getItem('emailjsSettings') || '{}');
+            if (emailjsSettings.publicKey) {
+                emailjs.init(emailjsSettings.publicKey);
+                document.getElementById('setupContainer').classList.add('hidden');
+                
+                // Pre-fill the saved settings
+                document.getElementById('emailjsServiceId').value = emailjsSettings.serviceId || '';
+                document.getElementById('emailjsTemplateId').value = emailjsSettings.templateId || '';
+                document.getElementById('emailjsPublicKey').value = emailjsSettings.publicKey || '';
+            }
+        })();
+        
         // Questions by category
         const questions = {
             childhood: [
@@ -218,10 +335,12 @@
         const recordButton = document.getElementById('recordButton');
         const stopButton = document.getElementById('stopButton');
         const playButton = document.getElementById('playButton');
+        const emailButton = document.getElementById('emailButton');
         const prevButton = document.getElementById('prevButton');
         const nextButton = document.getElementById('nextButton');
         const timerElement = document.getElementById('timer');
         const categorySelect = document.getElementById('category-select');
+        const recipientEmailInput = document.getElementById('recipientEmail');
         
         // Initialize
         function init() {
@@ -236,11 +355,26 @@
             recordButton.addEventListener('click', startRecording);
             stopButton.addEventListener('click', stopRecording);
             playButton.addEventListener('click', playRecording);
+            emailButton.addEventListener('click', emailRecording);
             prevButton.addEventListener('click', previousQuestion);
             nextButton.addEventListener('click', nextQuestion);
             
+            // Setup EmailJS
+            saveSetupButton.addEventListener('click', saveEmailJSSettings);
+            
             // Check if recording was previously saved for current question
             checkForSavedRecording();
+            
+            // Check if recipient email was stored
+            const savedEmail = localStorage.getItem('recipientEmail');
+            if (savedEmail) {
+                recipientEmailInput.value = savedEmail;
+            }
+            
+            // Save recipient email when changed
+            recipientEmailInput.addEventListener('change', function() {
+                localStorage.setItem('recipientEmail', this.value);
+            });
         }
         
         function updateQuestion() {
@@ -334,54 +468,149 @@
             timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
         }
         
-   function saveRecording(blob) {
-    const url = URL.createObjectURL(blob);
-    const key = `${currentCategory}-${currentQuestionIndex}`;
-    const question = questions[currentCategory][currentQuestionIndex];
-    
-    recordings[key] = {
-        url: url,
-        question: question,
-        date: new Date().toISOString(),
-        category: currentCategory
-    };
-    
-    localStorage.setItem('memoirRecordings', JSON.stringify(recordings));
-
-    // 📧 Send the email
-    sendEmailWithRecording(blob);
-}
+        function saveRecording(blob) {
+            const url = URL.createObjectURL(blob);
+            const key = `${currentCategory}-${currentQuestionIndex}`;
+            const question = questions[currentCategory][currentQuestionIndex];
+            
+            recordings[key] = {
+                url: url,
+                question: question,
+                date: new Date().toISOString(),
+                category: currentCategory
+            };
+            
+            localStorage.setItem('memoirRecordings', JSON.stringify(recordings));
+        }
         
         function checkForSavedRecording() {
             const key = `${currentCategory}-${currentQuestionIndex}`;
             
             if (recordings[key]) {
                 playButton.disabled = false;
+                emailButton.disabled = false;
             } else {
                 playButton.disabled = true;
+                emailButton.disabled = true;
             }
         }
-        function sendEmailWithRecording(blob) {
-    const reader = new FileReader();
-
-    reader.onload = function () {
-        const base64Audio = reader.result.split(',')[1]; // remove the data URL prefix
-
-        emailjs.send("service_ghtj3ys", "template_f8uo4dw", {
-            to_email: "khauryski@gmail.com",
-            message: `New recording submitted for question: "${questions[currentCategory][currentQuestionIndex]}"`,
-            attachment: base64Audio
-
-        .then(function(response) {
-            alert("Recording emailed successfully!");
-        }, function(error) {
-            alert("Email failed: " + error.text);
-        });
-    };
-
-    reader.readAsDataURL(blob);
-}
-
+        
+        function saveEmailJSSettings() {
+            const serviceId = emailjsServiceId.value.trim();
+            const templateId = emailjsTemplateId.value.trim();
+            const publicKey = emailjsPublicKey.value.trim();
+            
+            if (!serviceId || !templateId || !publicKey) {
+                setupStatus.textContent = "Please fill in all EmailJS fields";
+                setupStatus.style.color = "red";
+                return;
+            }
+            
+            // Save settings to localStorage
+            const settings = {
+                serviceId: serviceId,
+                templateId: templateId,
+                publicKey: publicKey
+            };
+            
+            localStorage.setItem('emailjsSettings', JSON.stringify(settings));
+            
+            // Initialize EmailJS
+            emailjs.init(publicKey);
+            
+            setupStatus.textContent = "Settings saved successfully!";
+            setupStatus.style.color = "green";
+            
+            // Hide setup container after a delay
+            setTimeout(() => {
+                setupContainer.classList.add('hidden');
+            }, 2000);
+        }
+        
+        function emailRecording() {
+            const key = `${currentCategory}-${currentQuestionIndex}`;
+            const recipientEmail = recipientEmailInput.value.trim();
+            
+            if (!recipientEmail) {
+                alert("Please enter a recipient email address.");
+                return;
+            }
+            
+            if (!recordings[key]) {
+                alert("No recording found for this question.");
+                return;
+            }
+            
+            // Get EmailJS settings
+            const emailjsSettings = JSON.parse(localStorage.getItem('emailjsSettings') || '{}');
+            if (!emailjsSettings.serviceId || !emailjsSettings.templateId || !emailjsSettings.publicKey) {
+                setupContainer.classList.remove('hidden');
+                setupStatus.textContent = "Please set up EmailJS to send emails";
+                setupStatus.style.color = "red";
+                return;
+            }
+            
+            // Get the recording data
+            const question = questions[currentCategory][currentQuestionIndex];
+            const recording = recordings[key];
+            
+            // Update status
+            sendingStatus.textContent = "Preparing email...";
+            emailButton.disabled = true;
+            
+            // Convert the audio URL to a base64 string
+            fetch(recording.url)
+                .then(res => res.blob())
+                .then(blob => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(blob);
+                    reader.onloadend = function() {
+                        const base64data = reader.result;
+                        
+                        // Format date
+                        const date = new Date(recording.date).toLocaleDateString();
+                        
+                        // Create template parameters
+                        const templateParams = {
+                            to_email: recipientEmail,
+                            subject: `Family Memoir: ${question}`,
+                            question: question,
+                            category: currentCategory.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                            date: date,
+                            audio_data: base64data
+                        };
+                        
+                        sendingStatus.textContent = "Sending email...";
+                        
+                        // Send email with attachment
+                        emailjs.send(
+                            emailjsSettings.serviceId,
+                            emailjsSettings.templateId,
+                            templateParams
+                        ).then(function(response) {
+                            sendingStatus.textContent = "Email sent successfully!";
+                            sendingStatus.style.color = "green";
+                            emailButton.disabled = false;
+                            
+                            setTimeout(() => {
+                                sendingStatus.textContent = "";
+                            }, 3000);
+                            
+                        }, function(error) {
+                            sendingStatus.textContent = "Failed to send email. Try again.";
+                            sendingStatus.style.color = "red";
+                            emailButton.disabled = false;
+                            console.error("EmailJS Error:", error);
+                        });
+                    };
+                })
+                .catch(error => {
+                    sendingStatus.textContent = "Error preparing the recording.";
+                    sendingStatus.style.color = "red";
+                    emailButton.disabled = false;
+                    console.error("Error preparing email:", error);
+                });
+        }
         
         // Initialize the app
         init();
